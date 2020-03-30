@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- This file indicates that this application should be only deployed on a single node in a cluster. -->
+<singleton-deployment xmlns="urn:jboss:singleton-deployment:1.0"/>
