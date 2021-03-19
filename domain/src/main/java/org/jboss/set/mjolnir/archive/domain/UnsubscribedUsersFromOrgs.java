@@ -1,7 +1,8 @@
-package org.jboss.set.mjolnir.archive.domain.repositories;
+package org.jboss.set.mjolnir.archive.domain;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.jboss.set.mjolnir.archive.domain.UserRemoval;
+import org.jboss.set.mjolnir.archive.domain.repositories.UnsubscribeStatus;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;

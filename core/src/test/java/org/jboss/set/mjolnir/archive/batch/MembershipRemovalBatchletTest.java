@@ -56,6 +56,8 @@ public class MembershipRemovalBatchletTest {
         // clear tables before each test
         em.createNativeQuery("delete from repository_forks").executeUpdate();
         em.createNativeQuery("delete from user_removals").executeUpdate();
+        em.createNativeQuery("delete from unsubscribed_users_from_orgs").executeUpdate();
+        em.createNativeQuery("delete from unsubscribed_users_from_teams").executeUpdate();
         em.clear();
 
         // create sample removals
@@ -126,6 +128,45 @@ public class MembershipRemovalBatchletTest {
     @Test
     public void testBatchlet_removeFromOrg() throws Exception {
         verifyBatchletProcessing(true);
+    }
+
+    @Test
+    public void testProcessRemoval_auditLog() throws Exception {
+        // configure that users should be unsubscribed from testorg
+        setUnsubscribeFromOrganization(true);
+        // configure GH API stubs
+        TestUtils.setupGitHubApiStubs();
+
+        // get a single removal to process
+        UserRemoval removal = em.createQuery("select r from UserRemoval r where ldapUsername = 'thofman'", UserRemoval.class)
+                .getSingleResult();
+        assertThat(removal.getStatus()).isNull();
+
+        // the #processRemoval() method doesn't open a transaction by itself, so need to do it here
+        em.getTransaction().begin();
+
+        // let the removal be processed
+        batchlet.processRemoval(removal);
+        em.getTransaction().commit();
+
+        // verify the processing ended successfully
+        em.refresh(removal);
+        assertThat(removal.getStatus()).isEqualTo(RemovalStatus.COMPLETED);
+
+        // verify audit log for unsubscribed orgs
+        List<UnsubscribedUsersFromOrgs> unsubscribedUsers =
+                em.createQuery("select u from UnsubscribedUsersFromOrgs u", UnsubscribedUsersFromOrgs.class)
+                        .getResultList();
+        assertThat(unsubscribedUsers).extracting("userRemoval.id", "githubUsername", "githubOrgName", "status")
+                .containsOnly(Tuple.tuple(removal.getId(), "TomasHofman", "testorg", UnsubscribeStatus.COMPLETED));
+
+        // TODO: Do the same verification for teams.
+        //  The user TomasHofman is supposed to be a member of the "Team 1" only.
+        //  That's given in TestUtils#setupGitHubApiStubs(), where stubs for GitHub API are configured.
+        //  They should return:
+        //  * HTTP 204 for URL "/api/v3/teams/1/members/TomasHofman" (meaning TomasHofman is member of team #1),
+        //  * HTTP 404 for all other team-member combinations (meaning given user is not a member of given team).
+        //  (I might be wrong with the above, need to double check with the actual results.)
     }
 
     /**
